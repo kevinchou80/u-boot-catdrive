@@ -11,6 +11,11 @@
 #include <image.h>
 #include <lmb.h>
 #include <mapmem.h>
+#include <linux/kernel.h>
+#include <linux/sizes.h>
+#include <aes.h>
+#include <u-boot/md5.h>
+
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -74,12 +79,36 @@ static int booti_setup(bootm_headers_t *images)
 /*
  * Image booting support
  */
+extern u8 uid[8];
+extern u8 keyfail;
+u8 aes_key[AES_KEY_LENGTH];
+u8 aes_iv[AES_KEY_LENGTH] =
+ {0x1f,0x51,0xfd,0x82,0x87,0xb6,0x76,0x2a,0x13,0x93,0x1f,0x5d,0xac,0x36,0x4b,0x30};
+
 static int booti_start(cmd_tbl_t *cmdtp, int flag, int argc,
 			char * const argv[], bootm_headers_t *images)
 {
 	int ret;
 	struct Image_header *ih;
-
+	u8 key[8];
+	u8 *src;
+	u8 *dst;
+	if(keyfail)
+		return 1;
+	key[0]=uid[0]+0x12;
+	key[1]=uid[1]+0x34;
+	key[2]=uid[2]+0x56;
+	key[3]=uid[3]+0xAB;
+	key[4]=uid[4]^0xCD;
+	key[5]=uid[5]^0xEF;
+	key[6]=uid[6]^0x12;
+	key[7]=uid[7]^0x34;
+	src = 0x1000100+key[0];
+	dst = 0x1000000;
+	md5 (key, 8, aes_key);
+	u8 aes_keyex [AES_EXPAND_KEY_LENGTH];
+	aes_expand_key(aes_key,aes_keyex);
+	aes_cbc_decrypt_blocks(aes_keyex, aes_iv, src, dst,0x4000/16); //decrypt ftb
 	ret = do_bootm_states(cmdtp, flag, argc, argv, BOOTM_STATE_START,
 			      images, 1);
 

@@ -376,6 +376,14 @@ config CMD_ZIP
 	help
 	  Compress a memory region with zlib deflate method.
 
+config CMD_LZMADEC
+	bool "lzmadec"
+	default y if CMD_BOOTI
+	select LZMA
+	help
+	  Support decompressing an LZMA (Lempel-Ziv-Markov chain algorithm)
+	  image from memory.
+
 endmenu
 
 menu "Device access commands"

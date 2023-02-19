@@ -701,7 +701,7 @@ int stm_is_locked(struct spi_flash *flash, u32 ofs, size_t len)
  *    0   |   0   |   0   |   1   |   1   |  512 KB       | Upper 1/16
  *    0   |   0   |   1   |   0   |   0   |  1 MB         | Upper 1/8
  *    0   |   0   |   1   |   0   |   1   |  2 MB         | Upper 1/4
- *    0   |   0   |   1   |   1   |   0   |  4 MB         | Upper 1/2
+ *    0   |   0   |   1   |   1   |   0   |  4 MB   fv      | Upper 1/2
  *    X   |   X   |   1   |   1   |   1   |  8 MB         | ALL
  *
  * Returns negative on errors, 0 on success.
@@ -863,10 +863,22 @@ static int spansion_quad_enable(struct spi_flash *flash)
 }
 #endif
 
+char jedecid[3]={0xef,0x60,0x17};
+u8 uid[8]={0,0,0,0,0,0,0,0};
+u8 keyfail = 0;
+#define passwdADDR 0xD0F00
 static const struct spi_flash_info *spi_flash_read_id(struct spi_flash *flash)
 {
 	int				tmp;
 	u8				id[SPI_FLASH_MAX_ID_LEN];
+//***********************************Key*********************************************//
+	u8 				i;
+	u8				cmd[5]={0x0b,(passwdADDR>>16)&0xff,(passwdADDR>>8)&0xff,passwdADDR&0xff,0};
+	u8				cmd4b[5]={0x4b,0,0,0,0};
+	u8				key[16];
+	u8				passwd[64];
+	u8				passwd2[64];
+//***********************************Key*********************************************//
 	const struct spi_flash_info	*info;
 
 	tmp = spi_flash_cmd(flash->spi, CMD_READ_ID, id, SPI_FLASH_MAX_ID_LEN);
@@ -874,7 +886,37 @@ static const struct spi_flash_info *spi_flash_read_id(struct spi_flash *flash)
 		printf("SF: error %d reading JEDEC ID\n", tmp);
 		return ERR_PTR(tmp);
 	}
-
+//***********************************Key*********************************************//
+	jedecid[0]=id[0]; jedecid[1]=id[1]; jedecid[2]=id[2]; //save jedecid
+	tmp = spi_flash_read_common(flash, cmd4b, 5, uid ,8);  //read uid
+	printf("MAOPAN.CC: ");
+	for(i=0;i<8;i++)
+	{
+		printf("%02x",uid[i]);
+	}
+	printf("\n");
+	md5 (uid, 8, key);
+	/*for(i=0;i<16;i++)
+	{
+		printf("%02x ",key[i]);
+	}*/
+	//printf("\n");
+	tmp = spi_flash_read_common(flash, cmd, sizeof(cmd), passwd, sizeof(passwd));//read passwd
+	md5 (key, 8, passwd2);
+	md5 (&key[8], 8, &passwd2[16]);
+	md5 (key, 16, &passwd2[32]);
+	md5 (key, 3, &passwd2[48]);
+	for(i=0;i<64;i++)
+	{
+		//printf("%02x ",passwd2[i]);
+		if(passwd[i] != passwd2[i])
+		{
+			printf("SF: key fail...\n");
+			keyfail = 1;
+			break;
+		}
+	}
+//***********************************Key*********************************************//
 	info = spi_flash_ids;
 	for (; info->name != NULL; info++) {
 		if (info->id_len) {

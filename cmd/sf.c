@@ -259,6 +259,56 @@ int spi_flash_update(struct spi_flash *flash, u32 offset,
 	return 0;
 }
 
+static int do_update_macsn(int argc, char * const argv[])
+{
+	unsigned long long mac;
+	char *endp;
+	char buf[64];
+	int snlen=0;
+	unsigned int snchk=0;
+	int ret = 1;
+	if (strcmp(argv[0], "updatemacsn") == 0)
+	{
+		for(int i=0;i<64;i++)
+			buf[i]=0;
+		mac = simple_strtoull(argv[1], &endp, 16);
+		if (*argv[1] == 0 || *endp != 0)
+			return -1;
+		for(int i=0;i<6;i++)
+		{
+			buf[i]=(char)(mac>>(40-i*8));
+			buf[6]+=buf[i];
+		}
+		snlen=strlen(argv[2]);
+		for(int i=0;i<snlen;i++)
+		{
+			snchk+=argv[2][i];
+		}
+		sprintf(&buf[32],"SN=%s,CHK=%d",argv[2],snchk);
+		ret = spi_flash_update(flash, 0x7eb000, sizeof(buf), buf);
+		if(ret==0)
+			printf("update success! mac: %02X:%02X:%02X:%02X:%02X:%02X sn: %s\n",
+			buf[0],buf[1],buf[2],buf[3],buf[4],buf[5],argv[2]);
+		else
+			printf("update failed! Error:%d\n",ret);
+	}
+	/*else if (strcmp(argv[0], "updatesn") == 0)
+	{
+		snlen=strlen(argv[1]);
+		for(int i=0;i<snlen;i++)
+		{
+			snchk+=argv[1][i];
+		}
+		sprintf(snbuf,"SN=%s,CHK=%d",argv[1],snchk);
+		ret = spi_flash_update(flash, 0x7c0020, sizeof(snbuf), snbuf);
+		if(ret==0)
+			printf("updatesn success! sn: %s",argv[1]);
+		else
+			printf("updatesn failed! Error:%d",ret);
+	}*/
+	return ret == 0 ? 0 : 1;
+}
+
 static int do_spi_flash_read_write(int argc, char * const argv[])
 {
 	unsigned long addr;
@@ -574,6 +624,8 @@ static int do_spi_flash(cmd_tbl_t *cmdtp, int flag, int argc,
 		ret = do_spi_flash_erase(argc, argv);
 	else if (strcmp(cmd, "protect") == 0)
 		ret = do_spi_protect(argc, argv);
+	else if(strcmp(argv[0], "updatemacsn") == 0)
+		ret = do_update_macsn(argc, argv);
 #ifdef CONFIG_CMD_SF_TEST
 	else if (!strcmp(cmd, "test"))
 		ret = do_spi_flash_test(argc, argv);

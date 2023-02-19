@@ -1147,6 +1147,7 @@ int boot_get_ramdisk(int argc, char * const argv[], bootm_headers_t *images,
 #endif
 		default:
 #ifdef CONFIG_SUPPORT_RAW_INITRD
+			printf("SUPPORT_RAW_INITRD\n");
 			end = NULL;
 			if (select)
 				end = strchr(select, ':');
